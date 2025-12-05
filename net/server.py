@@ -24,7 +24,7 @@ def run_server(listen, port, tun_ip='10.10.0.1/30', tun_name='tun0'):
             data, addr = sock.recvfrom(65535)
             if addr not in clients:
                 print(f"[HANDSHAKE] from {addr}")
-                hs = Handshake()
+                hs = Handshake(psk=b'CRIPTOGRAFIA_CONTRASENA_SECRETA')
                 try:
                     resp = hs.server_response(data)
                 except Exception as e:
@@ -42,6 +42,12 @@ def run_server(listen, port, tun_ip='10.10.0.1/30', tun_name='tun0'):
             hs = entry['hs']
             ok, pt = verify_and_decrypt(hs.key_enc, hs.key_mac, hs.nonce, entry['counter_recv'], data)
             print(f"[ALL RX] counter={entry['counter_recv']} ok={ok} len={len(pt)} first16={pt[:16].hex() if len(pt)>=16 else ''}")
+
+            if not ok:
+                # Significa fallo en autenticación AEAD → puede ser replay o corrupción
+                print(f"[REJECT] AEAD authentication failed for counter={entry['counter_recv']} (replay or forged packet)")
+                # No incrementamos counter_recv en replay
+                continue
 
             if len(pt) >= MIN_IPV4_LEN:
                 version = pt[0] >> 4
@@ -62,6 +68,7 @@ def run_server(listen, port, tun_ip='10.10.0.1/30', tun_name='tun0'):
                 continue
             if len(pkt):
                 for addr, entry in clients.items():
+                    hs = entry['hs']
                     payload = encrypt_then_mac(hs.key_enc, hs.key_mac, hs.nonce, entry['counter_send'], pkt)
                     sock.sendto(payload, addr)
                     print(f"[UDP TX] to {addr} counter={entry['counter_send']} len={len(pkt)} first16={pkt[:16].hex() if len(pkt)>=16 else ''}")

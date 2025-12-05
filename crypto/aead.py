@@ -22,5 +22,10 @@ def verify_and_decrypt(key_enc: bytes, key_mac: bytes, nonce12: bytes, counter: 
     if expected != tag:
         return False, b''
     msg_counter = struct.unpack('>I', header)[0]
+    if msg_counter != counter:
+        # El paquete es íntegro, pero NO tiene el contador secuencial esperado.
+        # Esto es un ataque de Replay, paquete fuera de orden, o pérdida de sincronización.
+        print(f"[REPLAY DETECTED] Expected counter {counter}, got {msg_counter}")
+        return False, b''
     pt = chacha20_xor(key_enc, msg_counter, nonce12, ct)
     return True, pt

@@ -15,7 +15,7 @@ def run_client(peer_ip, port, tun_ip='10.10.0.2/30', tun_name='tun0'):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(('', 0))
 
-    hs = Handshake()
+    hs = Handshake(psk=b'CRIPTOGRAFIA_CONTRASENA_SECRETA')
     init = hs.client_init()
     print("[HANDSHAKE] Sending INIT")
     sock.sendto(init, (peer_ip, port))
