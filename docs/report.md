@@ -26,6 +26,10 @@ Archivos incluidos:
 - tools/offline_decrypt.py
 - run_server.sh
 - run_client.sh
+- groso_gw.py
+- groso1.py
+- groso2.py
+- proof_decrypt.py
 
 
 Nota: Esta implementación está hecha con fines académicos y demostrativos; revisa el informe teórico para discutir seguridad, consideraciones y pruebas.

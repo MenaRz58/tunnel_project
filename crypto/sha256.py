@@ -1,6 +1,6 @@
 import struct
 
-
+# SHA-256 constantes
 K = [
 0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -20,19 +20,28 @@ K = [
 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ]
 
+# Funciones auxiliares
 def _rotr(x, n):
+    # Rotación a la derecha de un entero de 32 bits
     return ((x >> n) | (x << (32 - n))) & 0xffffffff
 
-
+# Función principal SHA-256
 def sha256(message: bytes) -> bytes:
-    # Pre-processing
+    # Pre-procesamiento
     ml = len(message) * 8
+
+    # Añade el bit '1' seguido de ceros hasta que el mensaje tenga un tamaño congruente a 448 mod 512
     message += b'\x80'
+
+    # Añade ceros hasta que el mensaje tenga un tamaño congruente a 448 mod 512
     while (len(message) * 8) % 512 != 448:
+        # Añade un byte cero al mensaje
         message += b'\x00'
+
+    # Añade la longitud original del mensaje como un entero de 64 bits big-endian
     message += struct.pack('>Q', ml)
 
-    # Initialize hash values
+    # Inicializa los valores hash
     H = [
     0x6a09e667,
     0xbb67ae85,
@@ -44,27 +53,43 @@ def sha256(message: bytes) -> bytes:
     0x5be0cd19,
     ]
 
-
-    # Process the message in successive 512-bit chunks
+    # Procesa el mensaje en bloques sucesivos de 512 bits
     for i in range(0, len(message), 64):
+        # Extrae el bloque de 64 bytes
         chunk = message[i:i+64]
+
+        # Prepara el mensaje extendido W
         w = list(struct.unpack('>16I', chunk)) + [0]*48
+
+        # Extiende el mensaje
         for t in range(16, 64):
+            # Calcula s0 y s1 para la extensión del mensaje
             s0 = (_rotr(w[t-15], 7) ^ _rotr(w[t-15], 18) ^ (w[t-15] >> 3)) & 0xffffffff
             s1 = (_rotr(w[t-2], 17) ^ _rotr(w[t-2], 19) ^ (w[t-2] >> 10)) & 0xffffffff
+
+            # Calcula el valor extendido w[t]
             w[t] = (w[t-16] + s0 + w[t-7] + s1) & 0xffffffff
 
-
+        # Inicializa las variables de trabajo con los valores hash actuales
         a,b,c,d,e,f,g,h = H
+
+        # Realiza las 64 rondas de compresión
         for t in range(64):
+            # Calcula las funciones y valores temporales para la ronda t
             S1 = (_rotr(e,6) ^ _rotr(e,11) ^ _rotr(e,25)) & 0xffffffff
+
+            # Calcula la función elección (ch)
             ch = (e & f) ^ ((~e) & g)
+
+            # Calcula la suma temporal temp1
             temp1 = (h + S1 + ch + K[t] + w[t]) & 0xffffffff
+
+            # Calcula la suma temporal temp2
             S0 = (_rotr(a,2) ^ _rotr(a,13) ^ _rotr(a,22)) & 0xffffffff
-            maj = (a & b) ^ (a & c) ^ (b & c)
+            maj = (a & b) ^ (a & c) ^ (b & c) # Calcula la función mayoría (maj)
             temp2 = (S0 + maj) & 0xffffffff
 
-
+            # Actualiza las variables de trabajo
             h = g
             g = f
             f = e
@@ -74,14 +99,14 @@ def sha256(message: bytes) -> bytes:
             b = a
             a = (temp1 + temp2) & 0xffffffff
 
-
+        # Actualiza los valores hash con los resultados de esta ronda
         H = [ (H[0]+a)&0xffffffff, (H[1]+b)&0xffffffff, (H[2]+c)&0xffffffff, (H[3]+d)&0xffffffff,
         (H[4]+e)&0xffffffff, (H[5]+f)&0xffffffff, (H[6]+g)&0xffffffff, (H[7]+h)&0xffffffff ]
 
-
+    # Devuelve el hash final como una secuencia de bytes
     return b''.join(struct.pack('>I', h) for h in H)
 
-
+# Prueba rápida del SHA-256
 if __name__ == '__main__':
-    # quick test: empty string hash
-    print(sha256(b'').hex()) # should be e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    # Imprime el SHA-256 del mensaje vacío
+    print(sha256(b'').hex()) # Debería ser: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
