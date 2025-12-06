@@ -3,7 +3,22 @@
 pcap_decryptor.py
 Herramienta Forense: Descifra tráfico VPN capturado y genera un PCAP limpio.
 Usa Scapy para manejo de archivos y 'crypto.aead' propio para el descifrado.
+
+Idealmente, esta herramienta no debería estar dentro de las carpetas internas del túnel, 
+ya que no forma parte del protocolo ni del flujo de ejecución normal: es una utilidad forense 
+externa, destinada únicamente al análisis de PCAPs y a validar experimentalmente la seguridad 
+del canal.
+
+Sin embargo, para fines del proyecto académico la colocamos dentro de tools/decrypt/, 
+manteniendo todo centralizado en un solo repositorio y facilitando la revisión.
+
+Ejecutar (misma carpeta):
+    python3 pcap_decryptor.py <entrada_cifrada.pcap> <salida_limpia.pcap>
+
+Ejecutar desde la raíz del proyecto:
+    python3 tools/decrypt/pcap_decryptor.py files/captura_vpn.pcap files/captura_limpia.pcap (no existiría aún)
 """
+
 import sys
 import binascii
 from scapy.all import rdpcap, wrpcap, IP, UDP
@@ -11,11 +26,12 @@ from scapy.all import rdpcap, wrpcap, IP, UDP
 from crypto.aead import verify_and_decrypt
 
 # --- CONFIGURACIÓN AUTOMÁTICA ---
-# Puerto UDP donde corre tu túnel (Groso2 escucha aquí)
+# Puerto UDP donde opera el túnel. Se utiliza para filtrar paquetes de interés.
 VPN_PORT = 50000
 
 def main():
     print("--- VPN TRAFFIC DECRYPTOR (Forensic Tool) ---")
+    # Requiere archivo de entrada (PCAP cifrado) y salida (PCAP descifrado)
     if len(sys.argv) != 3:
         print("Uso: python3 pcap_decryptor.py <entrada_cifrada.pcap> <salida_limpia.pcap>")
         sys.exit(1)
@@ -24,6 +40,7 @@ def main():
     output_file = sys.argv[2]
 
     # 1. SOLICITAR CLAVES DE LA SESIÓN CAPTURADA
+    # Necesarias para descifrado manual
     print("\nIntroduce las claves de la sesión (copiar del log de Groso1/2):")
     try:
         # Input con limpieza automática de espacios/saltos
@@ -31,6 +48,7 @@ def main():
         hex_mac = input("Key Mac (hex): ").strip().replace(' ', '')
         hex_nonce = input("Nonce   (hex): ").strip().replace(' ', '')
 
+        # Conversión desde hex a bytes
         key_enc = binascii.unhexlify(hex_enc)
         key_mac = binascii.unhexlify(hex_mac)
         nonce   = binascii.unhexlify(hex_nonce)
@@ -39,7 +57,9 @@ def main():
         return
 
     print(f"\n[*] Leyendo captura: {input_file}...")
+
     try:
+        # Carga del PCAP completo con Scapy
         packets = rdpcap(input_file)
     except FileNotFoundError:
         print("[ERROR] No se encuentra el archivo de entrada.")
@@ -51,26 +71,25 @@ def main():
 
     print("[*] Procesando paquetes...")
 
+    # Iteración sobre todos los paquetes de la captura
     for pkt in packets:
         # Filtramos solo paquetes UDP relacionados con el puerto VPN
         if UDP in pkt and (pkt[UDP].sport == VPN_PORT or pkt[UDP].dport == VPN_PORT):
             count_total += 1
             
-            # Extraer payload cifrado
-            # Scapy a veces añade padding, aseguramos tomar solo el payload
+            # Obtención del payload cifrado
             cipher_data = bytes(pkt[UDP].payload)
-            
+            # Se descartan paquetes demasiado pequeños para ser válidos
             if len(cipher_data) < 36: # Mínimo header+tag
                 continue
 
-            # 2. DESCIFRAR CON TU CÓDIGO PROPIO
-            # El contador (0) no se usa, la función lo lee del header del paquete
+            # 2. DESCIFRADO mediante la función AEAD interna del proyecto
             ok, plaintext = verify_and_decrypt(key_enc, key_mac, nonce, 0, cipher_data)
 
             if ok:
-                # 3. RECONSTRUCCIÓN
+                # 3. RECONSTRUCCIÓN del paquete IP interno
                 # plaintext es el paquete IP interno completo.
-                # Lo convertimos a objeto Scapy para guardarlo en el nuevo PCAP.
+                # Conversión a objeto Scapy para guardarlo en el nuevo PCAP.
                 try:
                     # Creamos un paquete IP con los datos descifrados
                     ip_pkt = IP(plaintext)
@@ -93,6 +112,7 @@ def main():
         print(f"Paquetes descifrados: {count_ok}")
         print(f"Generando archivo: {output_file} ...")
         
+        # Escritura del PCAP con los paquetes descifrados
         wrpcap(output_file, decrypted_packets)
         
         print("\n[ÉXITO] ¡Archivo generado!")

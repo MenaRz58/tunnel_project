@@ -2,7 +2,7 @@
 # demo_client.sh - GROSO1
 
 SERVER_IP="192.168.10.12"
-FILE_NAME="ReadMeTunel.pdf"
+FILE_NAME="files/ReadMeTunel.pdf"
 
 echo "=== DEMO AUTOMATIZADA: CLIENTE ==="
 
